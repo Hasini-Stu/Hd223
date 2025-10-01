@@ -1,0 +1,87 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: parkcharge-alert-rules
+  namespace: monitoring
+  labels:
+    app: parkcharge-smart-rewards
+spec:
+  groups:
+  - name: parkcharge.rules
+    rules:
+    - alert: HighErrorRate
+      expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+      for: 5m
+      labels:
+        severity: critical
+        service: parkcharge-smart-rewards
+      annotations:
+        summary: "High error rate detected in ParkCharge Smart Rewards"
+        description: "Error rate is {{ $value }} errors per second for the last 5 minutes"
+        runbook_url: "https://docs.parkcharge.com/runbooks/high-error-rate"
+
+    - alert: HighResponseTime
+      expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+      for: 5m
+      labels:
+        severity: warning
+        service: parkcharge-smart-rewards
+      annotations:
+        summary: "High response time detected"
+        description: "95th percentile response time is {{ $value }} seconds"
+        runbook_url: "https://docs.parkcharge.com/runbooks/high-response-time"
+
+    - alert: PodCrashLooping
+      expr: rate(kube_pod_container_status_restarts_total{container="parkcharge-smart-rewards"}[15m]) > 0
+      for: 5m
+      labels:
+        severity: critical
+        service: parkcharge-smart-rewards
+      annotations:
+        summary: "Pod is crash looping"
+        description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is restarting frequently"
+        runbook_url: "https://docs.parkcharge.com/runbooks/pod-crash-loop"
+
+    - alert: HighMemoryUsage
+      expr: (container_memory_usage_bytes{container="parkcharge-smart-rewards"} / container_spec_memory_limit_bytes{container="parkcharge-smart-rewards"}) > 0.8
+      for: 10m
+      labels:
+        severity: warning
+        service: parkcharge-smart-rewards
+      annotations:
+        summary: "High memory usage"
+        description: "Memory usage is above 80% for pod {{ $labels.pod }}"
+        runbook_url: "https://docs.parkcharge.com/runbooks/high-memory-usage"
+
+    - alert: HighCPUUsage
+      expr: rate(container_cpu_usage_seconds_total{container="parkcharge-smart-rewards"}[5m]) > 0.8
+      for: 10m
+      labels:
+        severity: warning
+        service: parkcharge-smart-rewards
+      annotations:
+        summary: "High CPU usage"
+        description: "CPU usage is above 80% for pod {{ $labels.pod }}"
+        runbook_url: "https://docs.parkcharge.com/runbooks/high-cpu-usage"
+
+    - alert: ServiceDown
+      expr: up{job="parkcharge-smart-rewards"} == 0
+      for: 1m
+      labels:
+        severity: critical
+        service: parkcharge-smart-rewards
+      annotations:
+        summary: "Service is down"
+        description: "ParkCharge Smart Rewards service is not responding"
+        runbook_url: "https://docs.parkcharge.com/runbooks/service-down"
+
+    - alert: DiskSpaceLow
+      expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.1
+      for: 5m
+      labels:
+        severity: warning
+        service: infrastructure
+      annotations:
+        summary: "Low disk space"
+        description: "Disk space is below 10% on node {{ $labels.instance }}"
+        runbook_url: "https://docs.parkcharge.com/runbooks/low-disk-space"
